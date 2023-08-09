@@ -21,11 +21,15 @@ Deno.serve(async (request) => {
 
   const updates = await fetchUpdates()
   const rss = jsonToRss({ updates })
-  return new Response(new TextEncoder().encode(rss))
+  return new Response(new TextEncoder().encode(rss), {
+    headers: {
+      'Content-Type': 'application/rss+xml',
+    },
+  })
 })
 type Update = {
   title: string
-  date: string
+  date: Date
   body: string
 }
 
@@ -62,7 +66,7 @@ async function fetchUpdates() {
       // the title always ends in (MMM D, YYYY)
       const date = update.title.match(/\((.*)\)/)?.[1]
       if (date) {
-        update.date = new Date(date).toISOString()
+        update.date = new Date(date)
         update.title = update.title.replace(/\((.*)\)/, '').trim()
       }
 
@@ -87,18 +91,20 @@ function jsonToRss({
   description?: string
 }): string {
   let rss = '<?xml version="1.0" encoding="UTF-8" ?>'
-  rss += '<rss version="2.0">'
+  rss += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">'
   rss += '<channel>'
   rss += `<title>${title}</title>`
   rss += `<link>${link}</link>`
   rss += `<description>${description}</description>`
+  rss += `<atom:link href="${link}" rel="self" type="application/rss+xml" />`
 
   for (const update of updates) {
     rss += '<item>'
+    rss += `<guid>${link}#${update.title.toLowerCase().replace(/[\W ]/g, '-')}</guid>`
     rss += `<title>${update.title}</title>`
     rss += `<link>${link}</link>` // Modify if different links are required for each update
     rss += `<description>${update.body}}</description>`
-    rss += `<pubDate>${update.date}</pubDate>`
+    rss += `<pubDate>${toRFC822(update.date)}</pubDate>`
     rss += '</item>'
   }
 
@@ -106,4 +112,21 @@ function jsonToRss({
   rss += '</rss>'
 
   return rss
+}
+
+function toRFC822(date: Date): string {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+  debugger
+  const day = days[date.getUTCDay()]
+  const month = months[date.getUTCMonth()]
+
+  // Note: We're using a template string to make the format more readable.
+  return `${day}, ${String(date.getUTCDate()).padStart(2, '0')} ${month} ${date.getUTCFullYear()} ${String(
+    date.getUTCHours(),
+  ).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(
+    2,
+    '0',
+  )} GMT`
 }
