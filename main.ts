@@ -54,9 +54,12 @@ async function fetchUpdates() {
 
   while (nodes.length) {
     const node = nodes.shift()
+    if (!node) {
+      continue
+    }
 
     // if the node is a h2, then we have a new update
-    if (node?.nodeName === 'H2') {
+    if (node.nodeName === 'H2') {
       if (update.title && update.date && update.body) {
         updates.push(update as Update)
       }
@@ -70,11 +73,11 @@ async function fetchUpdates() {
         update.title = update.title.replace(/\((.*)\)/, '').trim()
       }
 
+      continue
+    } else {
       update.body ??= ''
 
       update.body += node.nodeType === node.ELEMENT_NODE ? (node as Element).innerHTML : node.textContent
-
-      continue
     }
   }
 
@@ -118,19 +121,18 @@ function jsonToRss({
   return rss
 }
 
+// Wed, 09 Aug 2023 20:13:55 +0000
 function toRFC822(date: Date): string {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  debugger
   const day = days[date.getUTCDay()]
   const month = months[date.getUTCMonth()]
 
-  // Note: We're using a template string to make the format more readable.
-  return `${day}, ${String(date.getUTCDate()).padStart(2, '0')} ${month} ${date.getUTCFullYear()} ${String(
-    date.getUTCHours(),
-  ).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(
-    2,
-    '0',
-  )} GMT`
+  const year = date.getUTCFullYear()
+  const hours = date.getUTCHours() < 10 ? `0${date.getUTCHours()}` : date.getUTCHours()
+  const minutes = date.getUTCMinutes() < 10 ? `0${date.getUTCMinutes()}` : date.getUTCMinutes()
+  const seconds = date.getUTCSeconds() < 10 ? `0${date.getUTCSeconds()}` : date.getUTCSeconds()
+
+  return `${day}, ${date.getUTCDate()} ${month} ${year} ${hours}:${minutes}:${seconds} GMT`
 }
