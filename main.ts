@@ -1,4 +1,4 @@
-import { DOMParser } from 'https://deno.land/x/deno_dom@v0.1.35-alpha/deno-dom-wasm.ts'
+import { DOMParser, Element } from 'https://deno.land/x/deno_dom@v0.1.35-alpha/deno-dom-wasm.ts'
 
 console.log('Hello world!')
 
@@ -70,6 +70,10 @@ async function fetchUpdates() {
         update.title = update.title.replace(/\((.*)\)/, '').trim()
       }
 
+      update.body ??= ''
+
+      update.body += node.nodeType === node.ELEMENT_NODE ? (node as Element).innerHTML : node.textContent
+
       continue
     }
   }
@@ -100,10 +104,10 @@ function jsonToRss({
 
   for (const update of updates) {
     rss += '<item>'
-    rss += `<guid>${link}#${update.title.toLowerCase().replace(/[\W ]/g, '-')}</guid>`
+    rss += `<guid>${link}#${update.date.toISOString().toLowerCase().replace(/[\W ]/g, '-')}</guid>`
     rss += `<title>${update.title}</title>`
     rss += `<link>${link}</link>` // Modify if different links are required for each update
-    rss += `<description>${update.body}}</description>`
+    rss += `<description><![CDATA[${update.body}}]]></description>`
     rss += `<pubDate>${toRFC822(update.date)}</pubDate>`
     rss += '</item>'
   }
