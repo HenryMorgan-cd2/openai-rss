@@ -19,19 +19,20 @@ Deno.serve(async (request) => {
     })
   }
 
-  const articles = await fetchUpdates()
-  return new Response(new TextEncoder().encode(JSON.stringify(articles)))
+  const updates = await fetchUpdates()
+  const rss = jsonToRss({ updates })
+  return new Response(new TextEncoder().encode(rss))
 })
 type Update = {
   title: string
   date: string
-  description: string
-  actions: string[]
+  body: string
 }
 
+const UPDATE_URL = 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes'
+
 async function fetchUpdates() {
-  const url = 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes'
-  const response = await fetch(url)
+  const response = await fetch(UPDATE_URL)
   const html = await response.text()
 
   const document = new DOMParser().parseFromString(html, 'text/html')
@@ -42,7 +43,7 @@ async function fetchUpdates() {
   const updates: Update[] = []
 
   console.log('getting nodes')
-  const nodes = Array.from(document.querySelector('article').childNodes).flatMap((node) => node.childNodes)
+  const nodes = Array.from(document.querySelector('article')!.childNodes).flatMap((node) => node.firstChild)
   console.log(`got ${nodes.length} nodes`)
 
   let update: Partial<Update> = {}
@@ -52,11 +53,19 @@ async function fetchUpdates() {
 
     // if the node is a h2, then we have a new update
     if (node?.nodeName === 'H2') {
-      if (update.title) {
+      if (update.title && update.date && update.body) {
         updates.push(update as Update)
       }
       update = {}
       update.title = node.textContent?.trim() ?? ''
+
+      // the title always ends in (MMM D, YYYY)
+      const date = update.title.match(/\((.*)\)/)?.[1]
+      if (date) {
+        update.date = new Date(date).toISOString()
+        update.title = update.title.replace(/\((.*)\)/, '').trim()
+      }
+
       continue
     }
   }
@@ -66,12 +75,17 @@ async function fetchUpdates() {
   return updates
 }
 
-function jsonToRss(
-  data: { updates: Update[] },
+function jsonToRss({
+  updates,
   title = 'ChatGPT Updates',
   link = 'https://example.com',
   description = 'Latest ChatGPT Updates',
-): string {
+}: {
+  updates: Update[]
+  title?: string
+  link?: string
+  description?: string
+}): string {
   let rss = '<?xml version="1.0" encoding="UTF-8" ?>'
   rss += '<rss version="2.0">'
   rss += '<channel>'
@@ -79,11 +93,11 @@ function jsonToRss(
   rss += `<link>${link}</link>`
   rss += `<description>${description}</description>`
 
-  for (const update of data.updates) {
+  for (const update of updates) {
     rss += '<item>'
     rss += `<title>${update.title}</title>`
     rss += `<link>${link}</link>` // Modify if different links are required for each update
-    rss += `<description>${update.description} Actions: ${update.actions.join(', ')}</description>`
+    rss += `<description>${update.body}}</description>`
     rss += `<pubDate>${update.date}</pubDate>`
     rss += '</item>'
   }
